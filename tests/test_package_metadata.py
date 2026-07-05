@@ -6,6 +6,7 @@ def test_pyproject_declares_current_package_layout():
     pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'name = "openpoints"' in pyproject
+    assert 'version = "0.1.1"' in pyproject
     assert 'package-dir = { "openpoints" = "." }' in pyproject
     assert '"openpoints.cpp.chamfer_dist"' in pyproject
     assert '"openpoints.dataset.semantic_kitti"' in pyproject
