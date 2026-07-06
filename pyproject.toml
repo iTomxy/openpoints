@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openpoints"
-version = "0.1.1"
+version = "0.1.2"
 description = "OpenPoints: point cloud understanding models, layers, datasets, transforms, optimizers, and training utilities."
 readme = "README.md"
 requires-python = ">=3.8"
