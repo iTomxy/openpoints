@@ -7,26 +7,26 @@ import numpy as np
 
 from .conv import create_convblock2d, create_convblock1d
 from .activation import create_act
-from .group import create_grouper, get_aggregation_feautres
+from .group import (
+    create_grouper,
+    get_aggregation_feautres,
+    get_aggregation_feature_channels,
+)
 
 
-CHANNEL_MAP = {
-    'fj': lambda x: x,
-    'df': lambda x: x,
+class _AggregationChannelMap(dict):
+    """Preserve legacy mappings and infer new component combinations."""
+
+    def __missing__(self, feature_type):
+        channel_fn = lambda channels: get_aggregation_feature_channels(feature_type, channels)
+        self[feature_type] = channel_fn
+        return channel_fn
+
+
+CHANNEL_MAP = _AggregationChannelMap({
     'assa': lambda x: x * 3,
     'assa_dp': lambda x: x * 3 + 3,
-    'dp_fj': lambda x: 3 + x,
-    'pj': lambda x: x,
-    'dp': lambda x: 3,
-    'pi_dp': lambda x: x + 3,
-    'pj_dp': lambda x: x + 3,
-    'dp_fj_df': lambda x: x*2 + 3,
-    'dp_fi_df': lambda x: x*2 + 3,
-    'pi_dp_fj_df': lambda x: x*2 + 6,
-    'pj_dp_fj_df': lambda x: x*2 + 6,
-    'pj_dp_df': lambda x: x + 6,
-    'dp_df': lambda x: x + 3,
-}
+})
 
 
 class ASSA(nn.Module):

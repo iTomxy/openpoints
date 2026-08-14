@@ -154,7 +154,9 @@ class SetAbstraction(nn.Module):
             points = len(dist[dist < radius]) / (dist.shape[0] * dist.shape[1])
             logging.info(f'query size: {query_xyz.shape}, support size: {support_xyz.shape}, radius: {radius}, num_neighbors: {points}')
             DEBUG end """
-            if self.use_res or 'df' in self.feature_type:
+            if self.use_res or any(
+                component in {'fi', 'df'} for component in self.feature_type.split('_')
+            ):
                 fi = torch.gather(
                     f, -1, idx.unsqueeze(1).expand(-1, f.shape[1], -1))
                 if self.use_res:
