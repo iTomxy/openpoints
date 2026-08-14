@@ -320,19 +320,76 @@ class KNNGroup(nn.Module):
             return grouped_xyz, None
 
 
+_AGGREGATION_COMPONENTS = frozenset({'pi', 'pj', 'dp', 'fi', 'fj', 'df'})
+_COORD_COMPONENTS = frozenset({'pi', 'pj', 'dp'})
+_FEATURE_COMPONENTS = frozenset({'fi', 'fj', 'df'})
+
+
+def _split_aggregation_feature_type(feature_type):
+    """Parse an underscore-separated aggregation feature specification."""
+    if not isinstance(feature_type, str):
+        raise TypeError(f'feature_type must be a string, got {type(feature_type)}')
+    components = tuple(component for component in feature_type.split('_') if component)
+    unknown = set(components) - _AGGREGATION_COMPONENTS
+    if not components or unknown:
+        raise ValueError(
+            f'Unsupported aggregation feature_type {feature_type!r}. '
+            f'Components must be chosen from {sorted(_AGGREGATION_COMPONENTS)}'
+        )
+    return components
+
+
+def get_aggregation_feature_channels(feature_type, feature_channels, coordinate_channels=3):
+    """Return the concatenated channel count for an aggregation feature type."""
+    components = _split_aggregation_feature_type(feature_type)
+    return sum(
+        coordinate_channels if component in _COORD_COMPONENTS else feature_channels
+        for component in components
+    )
+
+
+def get_aggregation_features(p, dp, f, fj, feature_type='dp_fj'):
+    """Concatenate requested query/neighbor coordinate and feature components.
+
+    Args:
+        p: query coordinates, shaped [B, N, 3].
+        dp: relative neighbor coordinates (pj - pi), shaped [B, 3, N, K].
+        f: query features, shaped [B, C, N]. Required by ``fi`` and ``df``.
+        fj: neighbor features, shaped [B, C, N, K].
+        feature_type: underscore-separated components from
+            ``pi``, ``pj``, ``dp``, ``fi``, ``fj``, and ``df``.
+    """
+    components = _split_aggregation_feature_type(feature_type)
+    num_neighbors = fj.shape[-1]
+    pi = p.transpose(1, 2).unsqueeze(-1).expand(-1, -1, -1, num_neighbors)
+    fi = None
+    parts = []
+
+    for component in components:
+        if component == 'pi':
+            parts.append(pi)
+        elif component == 'pj':
+            parts.append(pi + dp)
+        elif component == 'dp':
+            parts.append(dp)
+        elif component in _FEATURE_COMPONENTS:
+            if component in {'fi', 'df'} and f is None:
+                raise ValueError(f'feature_type {feature_type!r} requires query features')
+            if component in {'fi', 'df'} and fi is None:
+                fi = f.unsqueeze(-1).expand_as(fj)
+            if component == 'fi':
+                parts.append(fi)
+            elif component == 'fj':
+                parts.append(fj)
+            else:
+                parts.append(fj - fi)
+
+    return parts[0] if len(parts) == 1 else torch.cat(parts, dim=1)
+
+
 def get_aggregation_feautres(p, dp, f, fj, feature_type='dp_fj'):
-    if feature_type == 'dp_fj':
-        fj = torch.cat([dp, fj], 1)
-    elif feature_type == 'dp_fj_df':
-        df = fj - f.unsqueeze(-1)
-        fj = torch.cat([dp, fj, df], 1)
-    elif feature_type == 'pi_dp_fj_df':
-        df = fj - f.unsqueeze(-1)
-        fj = torch.cat([p.transpose(1, 2).unsqueeze(-1).expand(-1, -1, -1, df.shape[-1]), dp, fj, df], 1)
-    elif feature_type == 'dp_df':
-        df = fj - f.unsqueeze(-1)
-        fj = torch.cat([dp, df], 1)
-    return fj
+    """Backward-compatible alias retaining the original misspelled API name."""
+    return get_aggregation_features(p, dp, f, fj, feature_type)
 
 
 def create_grouper(group_args):
